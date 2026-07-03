@@ -1,8 +1,16 @@
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 
-def visualize(result, rmse):
+def visualize(result: pd.DataFrame, rmse: np.ndarray) -> None:
+    """Plot the true vs. predicted RUL curves and save the figure to disk.
 
+    Args:
+        result: Frame whose first column is the true RUL and remaining
+            columns are the predictions.
+        rmse: RMSE of the predictions, used in the output filename.
+    """
     # the true remaining useful life of the testing samples
     true_rul = result.iloc[:, 0:1].to_numpy()
     # the predicted remaining useful life of the testing samples
@@ -16,5 +24,5 @@ def visualize(result, rmse):
     plt.legend()
     plt.xlabel("Samples")
     plt.ylabel("Remaining Useful Life")
-    plt.savefig('Transformer({}).png'.format(rmse))
+    plt.savefig(f'Transformer({rmse}).png')
     plt.show()

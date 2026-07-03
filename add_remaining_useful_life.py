@@ -1,4 +1,15 @@
-def add_remaining_useful_life(df):
+import pandas as pd
+
+
+def add_remaining_useful_life(df: pd.DataFrame) -> pd.DataFrame:
+    """Append a piece-wise linear RUL column derived from each unit's max cycle.
+
+    Args:
+        df: Frame with ``unit_nr`` and ``time_cycles`` columns.
+
+    Returns:
+        Copy of ``df`` with an added ``RUL`` column.
+    """
     # Get the total number of cycles for each unit
     grouped_by_unit = df.groupby(by="unit_nr")
     max_cycle = grouped_by_unit["time_cycles"].max()
