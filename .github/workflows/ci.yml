@@ -15,7 +15,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: |
-          pip install numpy pandas pytest flake8
+          pip install numpy "pandas<3" pytest flake8
           pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Lint (critical errors only)
         run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
