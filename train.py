@@ -34,8 +34,8 @@ def training():
 
                 y = x[t, -1:]  # fetch the corresponding target rul as label
 
-                X_train_tensors = Variable(torch.Tensor(X))
-                y_train_tensors = Variable(torch.Tensor(y))
+                X_train_tensors = torch.tensor(X, dtype=torch.float32)
+                y_train_tensors = torch.tensor(y, dtype=torch.float32)
                 
                 X_train_tensors_final = X_train_tensors.reshape(
                     (1, 1, X_train_tensors.shape[0], X_train_tensors.shape[1]))

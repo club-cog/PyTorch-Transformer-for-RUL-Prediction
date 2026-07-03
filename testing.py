@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 
 import torch
-from torch.autograd import Variable
 
 
 def testing(group_test, y_test, model):
@@ -21,7 +20,7 @@ def testing(group_test, y_test, model):
             else:
                 X_test = x_test[t - 1:t + 2, 2:]
 
-            X_test_tensors = Variable(torch.Tensor(X_test))
+            X_test_tensors = torch.tensor(X_test, dtype=torch.float32)
 
             X_test_tensors_final = X_test_tensors.reshape((1, 1, X_test_tensors.shape[0], X_test_tensors.shape[1]))
 

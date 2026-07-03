@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 
 '''
@@ -107,7 +106,7 @@ class PositionalEncoder(nn.Module):
             pe[i] = math.sin(t / (10000 ** ((2 * i) / self.d_model)))
             pe[i + 1] = math.cos(t / (10000 ** ((2 * (i + 1)) / self.d_model)))
 
-        x = x + Variable(torch.Tensor(pe))
+        x = x + torch.tensor(pe, dtype=torch.float32)
         return x
 
 
