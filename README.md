@@ -16,12 +16,14 @@ Epoch: 3, loss: 1310.71390, RMSE: 22.94705
 The testing is conducted for each epoch as the data set is not large so it's no big deal but you may remove them and only do the evaluation after finishing the training epochs.
 
 ## Environment Details
+Supported Python version: 3.9+ (tested with Python 3.11).
+
+Install the dependencies with `pip install -r requirements.txt`:
 ```
-python==3.8.8
-numpy==1.20.1
-pandas==1.2.4
-matplotlib==3.3.4
-pytorch==1.8.1
+numpy==2.2.6
+pandas==2.2.3
+matplotlib==3.10.3
+torch==2.7.1
 ```
 
 ## Credit

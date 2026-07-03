@@ -14,9 +14,9 @@ def loading_FD001():
     col_names = index_names + setting_names + sensor_names
 
     # read data
-    train = pd.read_csv((dir_path + 'train_FD001.txt'), sep='\s+', header=None, names=col_names)
-    test = pd.read_csv((dir_path + 'test_FD001.txt'), sep='\s+', header=None, names=col_names)
-    y_test = pd.read_csv((dir_path + 'RUL_FD001.txt'), sep='\s+', header=None, names=['RUL'])
+    train = pd.read_csv((dir_path + 'train_FD001.txt'), sep=r'\s+', header=None, names=col_names)
+    test = pd.read_csv((dir_path + 'test_FD001.txt'), sep=r'\s+', header=None, names=col_names)
+    y_test = pd.read_csv((dir_path + 'RUL_FD001.txt'), sep=r'\s+', header=None, names=['RUL'])
 
     # drop non-informative features in training set
     drop_sensors = ['s_1', 's_5', 's_6', 's_10', 's_16', 's_18', 's_19']
@@ -33,7 +33,7 @@ def loading_FD001():
 
     # add piece-wise target remaining useful life
     train_norm = add_remaining_useful_life(train_norm)
-    train_norm['RUL'].clip(upper=125, inplace=True) # in the paper the MAX RUL is mentioned as 125
+    train_norm['RUL'] = train_norm['RUL'].clip(upper=125) # in the paper the MAX RUL is mentioned as 125
 
     # group the training set with unit
     group = train_norm.groupby(by="unit_nr")
