@@ -1,27 +1,39 @@
+from typing import Tuple
+
 import pandas as pd
-from add_remaining_useful_life import *
+from pandas.core.groupby.generic import DataFrameGroupBy
+
+from add_remaining_useful_life import add_remaining_useful_life
 
 
-def loading_FD001():
+def loading_FD001() -> Tuple[DataFrameGroupBy, pd.DataFrame, DataFrameGroupBy]:
+    """Load and preprocess the CMAPSS FD001 dataset.
 
+    Reads the raw train/test sensor files, drops non-informative features,
+    min-max normalizes the sensor data, and adds a piece-wise RUL target
+    (capped at 125) to the training set.
+
+    Returns:
+        Tuple of (training groupby unit, test RUL targets, testing groupby unit).
+    """
     # define filepath to read data
     dir_path = './CMAPSSData/'
 
     # define column names for easy indexing
     index_names = ['unit_nr', 'time_cycles']
     setting_names = ['setting_1', 'setting_2', 'setting_3']
-    sensor_names = ['s_{}'.format(i) for i in range(1, 22)]
+    sensor_names = [f's_{i}' for i in range(1, 22)]
     col_names = index_names + setting_names + sensor_names
 
     # read data
-    train = pd.read_csv((dir_path + 'train_FD001.txt'), sep='\s+', header=None, names=col_names)
-    test = pd.read_csv((dir_path + 'test_FD001.txt'), sep='\s+', header=None, names=col_names)
-    y_test = pd.read_csv((dir_path + 'RUL_FD001.txt'), sep='\s+', header=None, names=['RUL'])
+    train = pd.read_csv((dir_path + 'train_FD001.txt'), sep=r'\s+', header=None, names=col_names)
+    test = pd.read_csv((dir_path + 'test_FD001.txt'), sep=r'\s+', header=None, names=col_names)
+    y_test = pd.read_csv((dir_path + 'RUL_FD001.txt'), sep=r'\s+', header=None, names=['RUL'])
 
     # drop non-informative features in training set
     drop_sensors = ['s_1', 's_5', 's_6', 's_10', 's_16', 's_18', 's_19']
     drop_labels = setting_names + drop_sensors
-    train.drop(labels=drop_labels, axis=1, inplace=True)
+    train = train.drop(labels=drop_labels, axis=1)
 
     # separate title information and sensor data
     title = train.iloc[:, 0:2]
@@ -33,13 +45,13 @@ def loading_FD001():
 
     # add piece-wise target remaining useful life
     train_norm = add_remaining_useful_life(train_norm)
-    train_norm['RUL'].clip(upper=125, inplace=True) # in the paper the MAX RUL is mentioned as 125
+    train_norm['RUL'] = train_norm['RUL'].clip(upper=125)  # in the paper the MAX RUL is mentioned as 125
 
     # group the training set with unit
     group = train_norm.groupby(by="unit_nr")
 
     # drop non-informative features in testing set
-    test.drop(labels=drop_labels, axis=1, inplace=True)
+    test = test.drop(labels=drop_labels, axis=1)
     title = test.iloc[:, 0:2]
     data = test.iloc[:, 2:]
     data_norm = (data - data.min()) / (data.max() - data.min())

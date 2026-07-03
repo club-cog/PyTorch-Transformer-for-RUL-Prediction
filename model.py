@@ -1,37 +1,44 @@
+"""Hybrid CNN-Transformer model for remaining useful life prediction.
+
+Typical hyperparameters:
+    d_model = 128  # dimension in encoder
+    heads = 4      # number of heads in multi-head attention
+    N = 2          # number of encoder layers
+    m = 14         # number of features
+"""
+
 import copy
 import math
+from typing import Optional
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
-
-'''
-num_epochs = 1 # Number of training epochs
-d_model = 128  # dimension in encoder
-heads = 4  # number of heads in multi-head attention
-N = 2  # number of encoder layers
-m = 14  # number of features
-'''
 
 class Transformer(nn.Module):
-    def __init__(self, m, d_model, N, heads, dropout):
+    """Full model: gated convolutional input stage followed by a Transformer encoder."""
+
+    def __init__(self, m: int, d_model: int, N: int, heads: int, dropout: float) -> None:
         super().__init__()
         self.gating = Gating(d_model, m)
         self.encoder = Encoder(d_model, N, heads, m, dropout)
         self.out = nn.Linear(d_model, 1)
 
-    def forward(self, src, t):
+    def forward(self, src: torch.Tensor, t: int) -> torch.Tensor:
+        """Predict the RUL for one time step given a (1, 1, 3, m) input window."""
         e_i = self.gating(src)
         e_outputs = self.encoder(e_i, t)
         output = self.out(e_outputs)
-        
+
         return output.reshape(1)
 
 
 class Gating(nn.Module):
-    def __init__(self, d_model, m): # 128,14
+    """Gated convolutional unit with reset and update gates applied to the input window."""
+
+    def __init__(self, d_model: int, m: int) -> None:  # 128,14
         super().__init__()
         self.m = m
 
@@ -52,18 +59,19 @@ class Gating(nn.Module):
         self.init_weights()
 
         self.cnn_layers = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=(3, 1), stride=1), 
+            nn.Conv2d(1, 1, kernel_size=(3, 1), stride=1),
         )
-        
 
-    def init_weights(self):
+    def init_weights(self) -> None:
+        """Initialize all parameters uniformly in [-1/sqrt(m), 1/sqrt(m)]."""
         stdv = 1.0 / math.sqrt(self.m)
         for weight in self.parameters():
             weight.data.uniform_(-stdv, stdv)
 
-    def forward(self, x):
-        x_i = x[:, :, 1:2, :] #only applying the gating on the current row even with the stack of 3 rows cames as input (1,1,3,14)
-        h_i = self.cnn_layers(x) # shape becomes 1,1,1,14 as the nn.conv2d has output channel as 1 but the convolution is applied on whole past input (stack of three)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the gating mechanism and project to the encoder dimension."""
+        x_i = x[:, :, 1:2, :]  # only applying the gating on the current row even with the stack of 3 rows cames as input (1,1,3,14)
+        h_i = self.cnn_layers(x)  # shape becomes 1,1,1,14 as the nn.conv2d has output channel as 1 but the convolution is applied on whole past input (stack of three)
 
         r_i = torch.sigmoid(torch.matmul(h_i, self.W_r) + torch.matmul(x_i, self.V_r) + self.b_r)
         u_i = torch.sigmoid(torch.matmul(h_i, self.W_u) + torch.matmul(x_i, self.V_u) + self.b_u)
@@ -71,21 +79,23 @@ class Gating(nn.Module):
         # the output of the gating mechanism
         hh_i = torch.mul(h_i, u_i) + torch.mul(x_i, r_i)
 
-        return torch.matmul(hh_i, self.W_e) + self.b_e # (the final output is 1,1,1,128 as the encoder has size of 128.)
+        return torch.matmul(hh_i, self.W_e) + self.b_e  # (the final output is 1,1,1,128 as the encoder has size of 128.)
 
 
 class Encoder(nn.Module):
-    def __init__(self, d_model, N, heads, m, dropout): #d_model = 128  # dimension in encoder, heads = 4  #number of heads in multi-head attention, N = 2  #encoder layers, m = 14  #number of features
+    """Stack of N encoder layers with positional encoding and a final normalization."""
+
+    def __init__(self, d_model: int, N: int, heads: int, m: int, dropout: float) -> None:
         super().__init__()
         self.N = N
-        # self.embed = Embedder(vocab_size, d_model)
         self.pe = PositionalEncoder(d_model)
         self.layers = get_clones(EncoderLayer(d_model, heads, dropout), N)
         self.norm = Norm(d_model)
         self.d_model = d_model
 
-    def forward(self, src, t):
-        src = src.reshape(1, self.d_model) # this 128 is changed according to d_model
+    def forward(self, src: torch.Tensor, t: int) -> torch.Tensor:
+        """Encode a single time step embedding through the layer stack."""
+        src = src.reshape(1, self.d_model)  # this 128 is changed according to d_model
         x = self.pe(src, t)
         for i in range(self.N):
             x = self.layers[i](x, None)
@@ -93,11 +103,14 @@ class Encoder(nn.Module):
 
 
 class PositionalEncoder(nn.Module):
-    def __init__(self, d_model):
+    """Sinusoidal positional encoding based on the current time step."""
+
+    def __init__(self, d_model: int) -> None:
         super().__init__()
         self.d_model = d_model
 
-    def forward(self, x, t):
+    def forward(self, x: torch.Tensor, t: int) -> torch.Tensor:
+        """Scale the input and add the sinusoidal encoding for time step ``t``."""
         # make embeddings relatively larger
         x = x * math.sqrt(self.d_model)
 
@@ -107,18 +120,19 @@ class PositionalEncoder(nn.Module):
             pe[i] = math.sin(t / (10000 ** ((2 * i) / self.d_model)))
             pe[i + 1] = math.cos(t / (10000 ** ((2 * (i + 1)) / self.d_model)))
 
-        x = x + Variable(torch.Tensor(pe))
+        x = x + torch.Tensor(pe)
         return x
 
 
-# We can then build a convenient cloning function that can generate multiple layers:
-def get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+def get_clones(module: nn.Module, N: int) -> nn.ModuleList:
+    """Return a ModuleList of ``N`` deep copies of ``module``."""
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
 
-# build an encoder layer with one multi-head attention layer and one # feed-forward layer
 class EncoderLayer(nn.Module):
-    def __init__(self, d_model, heads, dropout=0.5):
+    """Encoder layer with one multi-head attention layer and one feed-forward layer."""
+
+    def __init__(self, d_model: int, heads: int, dropout: float = 0.5) -> None:
         super().__init__()
         self.norm_1 = Norm(d_model)
         self.norm_2 = Norm(d_model)
@@ -127,7 +141,8 @@ class EncoderLayer(nn.Module):
         self.dropout_1 = nn.Dropout(dropout)
         self.dropout_2 = nn.Dropout(dropout)
 
-    def forward(self, x, mask):
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor]) -> torch.Tensor:
+        """Apply self-attention and feed-forward sublayers with residual connections."""
         x2 = self.norm_1(x)
         x = x + self.dropout_1(self.attn(x2, x2, x2, mask))
         x2 = self.norm_2(x)
@@ -136,7 +151,9 @@ class EncoderLayer(nn.Module):
 
 
 class Norm(nn.Module):
-    def __init__(self, d_model, eps=1e-6):
+    """Layer normalization with learnable gain and bias."""
+
+    def __init__(self, d_model: int, eps: float = 1e-6) -> None:
         super().__init__()
 
         self.size = d_model
@@ -145,13 +162,16 @@ class Norm(nn.Module):
         self.bias = nn.Parameter(torch.zeros(self.size))
         self.eps = eps
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Normalize the last dimension of ``x``."""
         norm = self.alpha * (x - x.mean(dim=-1, keepdim=True)) / (x.std(dim=-1, keepdim=True) + self.eps) + self.bias
         return norm
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, heads, d_model, dropout=0.5):
+    """Multi-head scaled dot-product attention."""
+
+    def __init__(self, heads: int, d_model: int, dropout: float = 0.5) -> None:
         super().__init__()
 
         self.d_model = d_model
@@ -164,22 +184,22 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.out = nn.Linear(d_model, d_model)
 
-    def forward(self, q, k, v, mask=None):
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
+                mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Compute attention over ``h`` heads and project back to ``d_model``."""
         bs = q.size(0)
 
         # perform linear operation and split into h heads
-
         k = self.k_linear(k).view(bs, -1, self.h, self.d_k)
         q = self.q_linear(q).view(bs, -1, self.h, self.d_k)
         v = self.v_linear(v).view(bs, -1, self.h, self.d_k)
 
         # transpose to get dimensions bs * h * sl * d_model
-
         k = k.transpose(1, 2)
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        # calculate attention using function we will define next
+        # calculate attention
         scores = attention(q, k, v, self.d_k, mask, self.dropout)
 
         # concatenate heads and put through final linear layer
@@ -191,12 +211,14 @@ class MultiHeadAttention(nn.Module):
         return output
 
 
-def attention(q, k, v, d_k, mask=None, dropout=None):
+def attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, d_k: int,
+              mask: Optional[torch.Tensor] = None,
+              dropout: Optional[nn.Dropout] = None) -> torch.Tensor:
+    """Scaled dot-product attention with optional dropout."""
     scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(d_k)
 
     if mask is not None:
         mask = mask.unsqueeze(1)
-    # scores = scores.masked_fill(mask == 0, -1e9)
     scores = F.softmax(scores, dim=-1)
 
     if dropout is not None:
@@ -207,14 +229,16 @@ def attention(q, k, v, d_k, mask=None, dropout=None):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model, d_ff=512, dropout=0.5):
+    """Two-layer position-wise feed-forward network with ReLU and dropout."""
+
+    def __init__(self, d_model: int, d_ff: int = 512, dropout: float = 0.5) -> None:
         super().__init__()
-        # set d_ff as a default to 512
         self.linear_1 = nn.Linear(d_model, d_ff)
         self.dropout = nn.Dropout(dropout)
         self.linear_2 = nn.Linear(d_ff, d_model)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the feed-forward transformation."""
         x = self.dropout(F.relu(self.linear_1(x)))
         x = self.linear_2(x)
         return x
