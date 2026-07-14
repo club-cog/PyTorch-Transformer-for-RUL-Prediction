@@ -1,0 +1,9 @@
+# Runtime + test dependencies used by the test suite and CI.
+# The versions here are modern equivalents of the (conda-style) pins in
+# requirements.txt so the tests run on current Python (3.9+).
+torch
+numpy
+pandas
+matplotlib
+pytest
+pytest-cov
