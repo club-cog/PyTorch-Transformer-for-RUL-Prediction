@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytorch-transformer-rul"
+version = "0.1.0"
+description = "Transformer + convolution model for Remaining Useful Life (RUL) prediction on the NASA CMAPSS dataset."
+requires-python = ">=3.8"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+# Core modules under test. train.py is the training-loop entrypoint (not
+# pure logic) and is intentionally excluded from the coverage target.
+source = [
+    "add_remaining_useful_life",
+    "loading_data",
+    "model",
+    "testing",
+    "visualize",
+]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
