@@ -1,5 +1,5 @@
-import torch
-torch.manual_seed(1)
+import tensorflow as tf
+tf.random.set_seed(1)
 from model import *
 from loading_data import *
 from testing import *
@@ -11,20 +11,33 @@ import argparse
 
 
 
+@tf.function
+def train_step(X, y, t, num_steps):
+    with tf.GradientTape() as tape:
+        # forward pass
+        outputs = model(X, t, training=True)
+
+        # obtain the loss function
+        loss = criterion(y, outputs)
+
+        loss_normalized = loss / num_steps  # normalize the loss
+
+    # backward pass
+    grads = tape.gradient(loss_normalized, model.trainable_variables)
+    return loss, grads
+
+
 def training():
     for epoch in range(num_epochs):  # iteration of epoch
         i = 1
         epoch_loss = 0
-
-        # training step
-        model.train()
 
         while i <= 100:  # iteration of unit
 
             # fetch the data of unit i
             x = group.get_group(i).to_numpy()
             total_loss = 0
-            optim.zero_grad()
+            accum_grads = [tf.zeros_like(v) for v in model.trainable_variables]
 
             for t in range(x.shape[0] - 1):
                 if t == 0:  # skip the first and last for convolution without padding
@@ -34,39 +47,30 @@ def training():
 
                 y = x[t, -1:]  # fetch the corresponding target rul as label
 
-                X_train_tensors = Variable(torch.Tensor(X))
-                y_train_tensors = Variable(torch.Tensor(y))
-                
-                X_train_tensors_final = X_train_tensors.reshape(
-                    (1, 1, X_train_tensors.shape[0], X_train_tensors.shape[1]))
-  
+                X_train_tensors = tf.convert_to_tensor(X, dtype=tf.float32)
+                y_train_tensors = tf.convert_to_tensor(y, dtype=tf.float32)
 
-                # forward pass
-                outputs = model.forward(X_train_tensors_final, t)
+                X_train_tensors_final = tf.reshape(
+                    X_train_tensors, (1, 1, X_train_tensors.shape[0], X_train_tensors.shape[1]))
 
-
-                # obtain the loss function
-                loss = criterion(outputs, y_train_tensors)
+                # forward and backward pass, loss normalized by the number of steps in the unit
+                loss, grads = train_step(X_train_tensors_final, y_train_tensors, tf.constant(t),
+                                         tf.constant(x.shape[0] - 2, dtype=tf.float32))
 
                 # summarize the loss
-                total_loss += loss.item()
+                total_loss += float(loss)
 
-                loss = loss / (x.shape[0] - 2)  # normalize the loss
-                loss.backward()  # backward pass
+                # accumulate gradients over the unit
+                accum_grads = [a + g for a, g in zip(accum_grads, grads)]
 
-                # only update after finishing one unit
-                if t == x.shape[0] - 2:  # Wait for several backward steps
-                    optim.step()  # Now we can do an optimizer step
-                    optim.zero_grad()  # Reset gradients tensors
+            # only update after finishing one unit
+            optim.apply_gradients(zip(accum_grads, model.trainable_variables))
 
             i += 1
             epoch_loss += total_loss / x.shape[0]
 
         # evaluate model
-        model.eval()
-
-        with torch.no_grad():
-            rmse, result = testing(group_test, y_test, model)
+        rmse, result = testing(group_test, y_test, model)
 
         print("Epoch: %d, training loss: %1.5f, testing rmse: %1.5f" % (epoch, epoch_loss / 100, rmse))
 
@@ -95,26 +99,26 @@ if __name__ == "__main__":
         
         # define and load model
         model = Transformer(m, d_model, N, heads, dropout)
+        model(tf.zeros((1, 1, 3, m)), 0, training=False)  # build the weights
 
-        # initialization
-        for p in model.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+        # initialization, equivalent to nn.init.xavier_uniform_ on every parameter with dim > 1
+        xavier_uniform = tf.keras.initializers.GlorotUniform()
+        for p in model.trainable_variables:
+            if len(p.shape) > 1:
+                p.assign(xavier_uniform(p.shape, dtype=p.dtype))
                 
-        # initialize Adam optimizer
-        optim = torch.optim.Adam(model.parameters(), lr=0.001)
+        # initialize Adam optimizer (epsilon matches torch.optim.Adam's default)
+        optim = tf.keras.optimizers.Adam(learning_rate=0.001, epsilon=1e-8)
 
         # mean-squared error for regression
-        criterion = torch.nn.MSELoss()
+        criterion = tf.keras.losses.MeanSquaredError()
 
         # training with evaluation
         result, rmse = training()
 
         # testing already done in training() for each epoch to see live testing rmse, or
         # can be done once after finish training
-        # model.eval()
-        # with torch.no_grad():
-        #     rmse, result = testing(group_test, y_test, model)
+        # rmse, result = testing(group_test, y_test, model)
 
         # visualize the testing result
         visualize(result, rmse)

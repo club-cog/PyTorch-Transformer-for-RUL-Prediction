@@ -1,11 +1,11 @@
 # PyTorch Transformer for RUL Prediction
-An implementation with Transformer encoder and convolution layers with PyTorch for remaining useful life prediction.   
+An implementation with Transformer encoder and convolution layers with TensorFlow 2 / Keras for remaining useful life prediction (originally written in PyTorch).   
 _Author: Jiaxiang Cheng, Nanyang Technological University, Singapore_
 
-<img alt="Python" src="https://img.shields.io/badge/python-%2314354C.svg?style=for-the-badge&logo=python&logoColor=white"/> <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white" />
+<img alt="Python" src="https://img.shields.io/badge/python-%2314354C.svg?style=for-the-badge&logo=python&logoColor=white"/> <img alt="TensorFlow" src="https://img.shields.io/badge/TensorFlow-%23FF6F00.svg?style=for-the-badge&logo=TensorFlow&logoColor=white" />
 
 ## Quick Run
-Simply run `python train.py --dataset FD001`. And you will get the training loss and testing result for each epoch where the RMSE is from the test set:
+Install TensorFlow 2 and the other dependencies listed under [Environment Details](#environment-details), then run `python train.py --dataset FD001`. And you will get the training loss and testing result for each epoch where the RMSE is from the test set:
 ```
 Epoch: 0, loss: 9474.43470, RMSE: 61.11946
 Epoch: 1, loss: 5858.27227, RMSE: 46.03318
@@ -18,10 +18,10 @@ The testing is conducted for each epoch as the data set is not large so it's no 
 ## Environment Details
 ```
 python==3.8.8
-numpy==1.20.1
-pandas==1.2.4
-matplotlib==3.3.4
-pytorch==1.8.1
+numpy==1.24.3
+pandas==1.5.3
+matplotlib==3.7.1
+tensorflow==2.13.0
 ```
 
 ## Credit
