@@ -48,7 +48,9 @@ class Gating(tf.keras.layers.Layer):
     def build(self, input_shape):
         m, d_model = self.m, self.d_model
         stdv = 1.0 / math.sqrt(m)
-        init = tf.keras.initializers.RandomUniform(-stdv, stdv)
+
+        def init(shape, dtype=None):
+            return tf.keras.initializers.RandomUniform(-stdv, stdv)(shape, dtype=dtype)
 
         # the reset gate r_i
         self.W_r = self.add_weight(name='W_r', shape=(m, m), initializer=init, trainable=True)

@@ -102,10 +102,9 @@ if __name__ == "__main__":
         model(tf.zeros((1, 1, 3, m)), 0, training=False)  # build the weights
 
         # initialization, equivalent to nn.init.xavier_uniform_ on every parameter with dim > 1
-        xavier_uniform = tf.keras.initializers.GlorotUniform()
         for p in model.trainable_variables:
             if len(p.shape) > 1:
-                p.assign(xavier_uniform(p.shape, dtype=p.dtype))
+                p.assign(tf.keras.initializers.GlorotUniform()(p.shape, dtype=p.dtype))
                 
         # initialize Adam optimizer (epsilon matches torch.optim.Adam's default)
         optim = tf.keras.optimizers.Adam(learning_rate=0.001, epsilon=1e-8)
