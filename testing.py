@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-import torch
-from torch.autograd import Variable
+import tensorflow as tf
 
 
 def testing(group_test, y_test, model):
@@ -21,12 +20,12 @@ def testing(group_test, y_test, model):
             else:
                 X_test = x_test[t - 1:t + 2, 2:]
 
-            X_test_tensors = Variable(torch.Tensor(X_test))
+            X_test_tensors = tf.convert_to_tensor(X_test, dtype=tf.float32)
 
-            X_test_tensors_final = X_test_tensors.reshape((1, 1, X_test_tensors.shape[0], X_test_tensors.shape[1]))
+            X_test_tensors_final = tf.reshape(X_test_tensors, (1, 1, X_test_tensors.shape[0], X_test_tensors.shape[1]))
 
-            test_predict = model.forward(X_test_tensors_final, t)
-            data_predict = test_predict.data.numpy()[-1]
+            test_predict = model(X_test_tensors_final, t, training=False)
+            data_predict = test_predict.numpy()[-1]
             
             # block for linearily decreasing the RUL after each iteration
             if data_predict - 1 < 0:
